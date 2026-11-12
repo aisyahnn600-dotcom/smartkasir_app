@@ -1,14 +1,75 @@
-
 import 'dart:async';
-import 'package:flutter/material.dart';
+import 'dart:convert';
 
-void main() {
-  runApp(const SmartKasirApp());
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'models/produk.dart';
+import 'helpers/database_helper.dart';
+import 'pages/dashboard_page.dart';
+
+// ==========================================
+// WARNA SMARTKASIR
+// ==========================================
+
+const Color biruMuda = Color(0xFF60A5FA);
+const Color biruNavy = Color(0xFF1E3A8A);
+const Color latarBiru = Color(0xFFF0F5FF);
+
+// ==========================================
+// FORMAT RUPIAH
+// ==========================================
+
+String rupiah(num value) {
+  final number = value.toInt().toString().replaceAllMapped(
+    RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+    (match) => '${match[1]}.',
+  );
+
+  return 'Rp $number';
 }
 
 // ==========================================
-// APLIKASI UTAMA
+// MODEL TRANSAKSI
 // ==========================================
+
+class Sale {
+  final String id;
+  final String date;
+  final List<Map<String, dynamic>> items;
+  final int total;
+
+  Sale({
+    required this.id,
+    required this.date,
+    required this.items,
+    required this.total,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {'id': id, 'date': date, 'items': items, 'total': total};
+  }
+
+  factory Sale.fromJson(Map<String, dynamic> json) {
+    return Sale(
+      id: json['id'].toString(),
+      date: json['date'].toString(),
+      items: (json['items'] as List)
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList(),
+      total: (json['total'] as num).toInt(),
+    );
+  }
+}
+
+// ==========================================
+// MAIN
+// ==========================================
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const SmartKasirApp());
+}
 
 class SmartKasirApp extends StatelessWidget {
   const SmartKasirApp({super.key});
@@ -18,19 +79,45 @@ class SmartKasirApp extends StatelessWidget {
     return MaterialApp(
       title: 'SmartKasir',
       debugShowCheckedModeBanner: false,
+
       theme: ThemeData(
         useMaterial3: true,
+
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1E3A8A),
+          seedColor: biruNavy,
+          brightness: Brightness.light,
+        ),
+
+        scaffoldBackgroundColor: latarBiru,
+
+        appBarTheme: const AppBarTheme(
+          backgroundColor: biruNavy,
+          foregroundColor: Colors.white,
+          centerTitle: false,
+        ),
+
+        navigationBarTheme: NavigationBarThemeData(
+          backgroundColor: const Color(0xFFE8EEFF),
+          indicatorColor: biruMuda.withValues(alpha: 0.25),
+          labelTextStyle: const WidgetStatePropertyAll(TextStyle(fontSize: 12)),
+        ),
+
+        cardTheme: CardThemeData(
+          color: Colors.white,
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
         ),
       ),
+
       home: const SplashScreen(),
     );
   }
 }
 
 // ==========================================
-// SPLASH SCREEN + COUNTDOWN TIMER
+// SPLASH SCREEN
 // ==========================================
 
 class SplashScreen extends StatefulWidget {
@@ -41,32 +128,29 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  int countdown = 3;
   Timer? timer;
+  int countdown = 10;
 
   @override
   void initState() {
     super.initState();
 
-    timer = Timer.periodic(
-      const Duration(seconds: 1),
-      (timer) {
-        if (countdown > 1) {
-          setState(() {
-            countdown--;
-          });
-        } else {
-          timer.cancel();
+    timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return;
 
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const DashboardPage(),
-            ),
-          );
-        }
-      },
-    );
+      if (countdown > 1) {
+        setState(() {
+          countdown--;
+        });
+      } else {
+        timer.cancel();
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const DashboardPage()),
+        );
+      }
+    });
   }
 
   @override
@@ -78,46 +162,63 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1E3A8A),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.point_of_sale,
-              color: Colors.white,
-              size: 90,
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'SmartKasir',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
+      body: Container(
+        width: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [biruMuda, biruNavy],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.18),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.point_of_sale,
+                  color: Colors.white,
+                  size: 75,
+                ),
               ),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              'Solusi Kasir Digital UMKM',
-              style: TextStyle(
-                color: Colors.white70,
-                fontSize: 16,
+
+              const SizedBox(height: 24),
+
+              const Text(
+                'SmartKasir',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 34,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-            const SizedBox(height: 35),
-            Text(
-              'Memulai dalam $countdown...',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
+
+              const SizedBox(height: 10),
+
+              const Text(
+                'Solusi Kasir Digital UMKM',
+                style: TextStyle(color: Colors.white70, fontSize: 16),
               ),
-            ),
-            const SizedBox(height: 20),
-            const CircularProgressIndicator(
-              color: Colors.white,
-            ),
-          ],
+
+              const SizedBox(height: 30),
+
+              Text(
+                'Memulai dalam $countdown...',
+                style: const TextStyle(color: Colors.white),
+              ),
+
+              const SizedBox(height: 20),
+
+              const CircularProgressIndicator(color: Colors.white),
+            ],
+          ),
         ),
       ),
     );
@@ -125,27 +226,7 @@ class _SplashScreenState extends State<SplashScreen> {
 }
 
 // ==========================================
-// MODEL DATA PRODUK
-// ==========================================
-
-class Product {
-  final String name;
-  final String category;
-  final int price;
-  final int stock;
-  final IconData icon;
-
-  const Product({
-    required this.name,
-    required this.category,
-    required this.price,
-    required this.stock,
-    required this.icon,
-  });
-}
-
-// ==========================================
-// DASHBOARD SMARTKASIR
+// DASHBOARD UTAMA
 // ==========================================
 
 class DashboardPage extends StatefulWidget {
@@ -157,104 +238,308 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   int selectedIndex = 0;
-  String searchText = '';
+  bool loading = true;
+  int catalogKey = 0;
 
-  final List<Product> products = const [
-    Product(
-      name: 'Kopi Arabika',
-      category: 'Minuman',
-      price: 25000,
-      stock: 20,
-      icon: Icons.coffee,
-    ),
-    Product(
-      name: 'Teh Original',
-      category: 'Minuman',
-      price: 10000,
-      stock: 35,
-      icon: Icons.local_cafe,
-    ),
-    Product(
-      name: 'Roti Cokelat',
-      category: 'Makanan',
-      price: 12000,
-      stock: 15,
-      icon: Icons.bakery_dining,
-    ),
-    Product(
-      name: 'Keripik Pisang',
-      category: 'Camilan',
-      price: 15000,
-      stock: 25,
-      icon: Icons.fastfood,
-    ),
-  ];
+  final List<Produk> products = [];
+  final List<Sale> sales = [];
+  final Map<int, int> cart = {};
 
-  String rupiah(int value) {
-    return 'Rp ${value.toString().replaceAllMapped(
-      RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
-      (match) => '${match[1]}.',
-    )}';
+  @override
+  void initState() {
+    super.initState();
+    loadData();
   }
 
-  List<Product> get filteredProducts {
-    return products.where((product) {
-      return product.name.toLowerCase().contains(
-        searchText.toLowerCase(),
+  // ========================================
+  // MEMUAT DATA
+  // ========================================
+
+  Future<void> loadData() async {
+    try {
+      final databaseProducts = await DatabaseHelper.instance.getAllProduk();
+
+      final prefs = await SharedPreferences.getInstance();
+      final salesData = prefs.getString('sales');
+
+      products
+        ..clear()
+        ..addAll(databaseProducts);
+
+      sales.clear();
+
+      if (salesData != null) {
+        final decoded = jsonDecode(salesData) as List;
+
+        sales.addAll(
+          decoded.map(
+            (item) => Sale.fromJson(Map<String, dynamic>.from(item as Map)),
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        showMessage('Gagal membaca data: $error');
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        loading = false;
+      });
+    }
+  }
+
+  // ========================================
+  // MENYIMPAN TRANSAKSI
+  // ========================================
+
+  Future<void> saveSales() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.setString(
+      'sales',
+      jsonEncode(sales.map((item) => item.toJson()).toList()),
+    );
+  }
+
+  // ========================================
+  // NOTIFIKASI
+  // ========================================
+
+  void showMessage(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  // ========================================
+  // MENCARI PRODUK
+  // ========================================
+
+  Produk? findProduct(int id) {
+    for (final product in products) {
+      if (product.id == id) {
+        return product;
+      }
+    }
+
+    return null;
+  }
+
+  // ========================================
+  // MENAMBAHKAN KE KERANJANG
+  // ========================================
+
+  void addToCart(Produk product) {
+    final id = product.id;
+
+    if (id == null) return;
+
+    final currentQuantity = cart[id] ?? 0;
+
+    if (currentQuantity >= product.stok) {
+      showMessage('Stok produk tidak mencukupi.');
+      return;
+    }
+
+    setState(() {
+      cart[id] = currentQuantity + 1;
+    });
+
+    showMessage('${product.nama} masuk keranjang.');
+  }
+
+  // ========================================
+  // MENGURANGI KERANJANG
+  // ========================================
+
+  void removeFromCart(int id) {
+    setState(() {
+      final quantity = cart[id] ?? 0;
+
+      if (quantity <= 1) {
+        cart.remove(id);
+      } else {
+        cart[id] = quantity - 1;
+      }
+    });
+  }
+
+  // ========================================
+  // TOTAL KERANJANG
+  // ========================================
+
+  int get cartTotal {
+    int total = 0;
+
+    for (final entry in cart.entries) {
+      final product = findProduct(entry.key);
+
+      if (product != null) {
+        final price = (product.hargaJual * (1 - product.diskonPersen / 100))
+            .round();
+
+        total += price * entry.value;
+      }
+    }
+
+    return total;
+  }
+
+  // ========================================
+  // TOTAL PENDAPATAN
+  // ========================================
+
+  int get totalRevenue {
+    return sales.fold<int>(0, (total, sale) => total + sale.total);
+  }
+
+  // ========================================
+  // CHECKOUT
+  // ========================================
+
+  Future<void> checkout() async {
+    if (cart.isEmpty) {
+      showMessage('Keranjang masih kosong.');
+      return;
+    }
+
+    final items = <Map<String, dynamic>>[];
+
+    for (final entry in cart.entries) {
+      final product = findProduct(entry.key);
+
+      if (product == null || product.stok < entry.value) {
+        showMessage('Stok produk tidak mencukupi.');
+        return;
+      }
+
+      final harga = (product.hargaJual * (1 - product.diskonPersen / 100))
+          .round();
+
+      items.add({
+        'name': product.nama,
+        'price': harga,
+        'quantity': entry.value,
+        'subtotal': harga * entry.value,
+      });
+    }
+
+    final total = cartTotal;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Konfirmasi Pembayaran'),
+          content: Text('Total pembayaran:\n${rupiah(total)}'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, false);
+              },
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, true);
+              },
+              child: const Text('Bayar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    try {
+      // Perbarui stok SQLite.
+      for (final entry in cart.entries) {
+        final product = findProduct(entry.key);
+
+        if (product == null) continue;
+
+        final produkBaru = Produk(
+          id: product.id,
+          kodeProduk: product.kodeProduk,
+          nama: product.nama,
+          kategori: product.kategori,
+          hargaBeli: product.hargaBeli,
+          hargaJual: product.hargaJual,
+          stok: product.stok - entry.value,
+          gambarUrl: product.gambarUrl,
+          diskonPersen: product.diskonPersen,
+        );
+
+        await DatabaseHelper.instance.updateProduk(produkBaru);
+      }
+
+      final transaksiBaru = Sale(
+        id: DateTime.now().microsecondsSinceEpoch.toString(),
+        date: DateTime.now().toString().split('.').first,
+        items: items,
+        total: total,
       );
-    }).toList();
+
+      sales.insert(0, transaksiBaru);
+
+      await saveSales();
+
+      cart.clear();
+
+      final dataTerbaru = await DatabaseHelper.instance.getAllProduk();
+
+      if (!mounted) return;
+
+      setState(() {
+        products
+          ..clear()
+          ..addAll(dataTerbaru);
+
+        catalogKey++;
+      });
+
+      showMessage('Transaksi berhasil disimpan!');
+    } catch (error) {
+      showMessage('Gagal menyimpan transaksi: $error');
+    }
   }
+
+  // ========================================
+  // TAMPILAN UTAMA
+  // ========================================
 
   @override
   Widget build(BuildContext context) {
-    final titles = [
-      'SmartKasir',
-      'Katalog Produk',
-      'Transaksi',
-      'Profil',
-    ];
+    final titles = ['SmartKasir', 'Katalog Produk', 'Transaksi', 'Profil'];
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6FB),
-
-      // HEADER
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1E3A8A),
-        foregroundColor: Colors.white,
         title: Text(
           titles[selectedIndex],
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-        actions: [
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.notifications_outlined),
-          ),
-        ],
       ),
 
-      // KONTEN HALAMAN
-      body: IndexedStack(
-        index: selectedIndex,
-        children: [
-          _buildHome(),
-          _buildProducts(),
-          _buildPlaceholder(
-            'Halaman Transaksi',
-            Icons.receipt_long,
-            'Fitur transaksi akan dikembangkan selanjutnya.',
-          ),
-          _buildPlaceholder(
-            'Halaman Profil',
-            Icons.person,
-            'Informasi profil pengguna SmartKasir.',
-          ),
-        ],
-      ),
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : IndexedStack(
+              index: selectedIndex,
+              children: [
+                buildHome(),
 
-      // NAVIGASI BAWAH
+                ProductCatalogPage(key: ValueKey(catalogKey), embedded: true),
+
+                buildTransactions(),
+
+                buildProfile(),
+              ],
+            ),
+
       bottomNavigationBar: NavigationBar(
         selectedIndex: selectedIndex,
         onDestinationSelected: (index) {
@@ -262,25 +547,22 @@ class _DashboardPageState extends State<DashboardPage> {
             selectedIndex = index;
           });
         },
+
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard),
             label: 'Beranda',
           ),
           NavigationDestination(
             icon: Icon(Icons.inventory_2_outlined),
-            selectedIcon: Icon(Icons.inventory_2),
             label: 'Produk',
           ),
           NavigationDestination(
             icon: Icon(Icons.receipt_long_outlined),
-            selectedIcon: Icon(Icons.receipt_long),
             label: 'Transaksi',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
             label: 'Profil',
           ),
         ],
@@ -289,218 +571,36 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   // ========================================
-  // HALAMAN BERANDA
-  // ========================================
-
-  Widget _buildHome() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Selamat Datang!',
-            style: TextStyle(
-              fontSize: 23,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 5),
-          const Text(
-            'Kelola penjualan UMKM dengan mudah.',
-            style: TextStyle(color: Colors.grey),
-          ),
-          const SizedBox(height: 20),
-
-          Row(
-            children: [
-              Expanded(
-                child: _summaryCard(
-                  'Total Produk',
-                  '${products.length}',
-                  Icons.inventory_2,
-                  Colors.blue,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _summaryCard(
-                  'Total Stok',
-                  '${products.fold<int>(
-                    0,
-                    (total, product) => total + product.stock,
-                  )}',
-                  Icons.warehouse,
-                  Colors.green,
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 25),
-
-          const Text(
-            'Katalog Produk',
-            style: TextStyle(
-              fontSize: 19,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          _buildSearchField(),
-
-          const SizedBox(height: 15),
-
-          _buildProductList(),
-        ],
-      ),
-    );
-  }
-
-  // ========================================
-  // HALAMAN PRODUK
-  // ========================================
-
-  Widget _buildProducts() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Daftar Produk UMKM',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '${products.length} produk tersedia',
-            style: const TextStyle(color: Colors.grey),
-          ),
-          const SizedBox(height: 20),
-          _buildSearchField(),
-          const SizedBox(height: 15),
-          _buildProductList(),
-        ],
-      ),
-    );
-  }
-
-  // ========================================
-  // PENCARIAN PRODUK
-  // ========================================
-
-  Widget _buildSearchField() {
-    return TextField(
-      onChanged: (value) {
-        setState(() {
-          searchText = value;
-        });
-      },
-      decoration: InputDecoration(
-        hintText: 'Cari nama produk...',
-        prefixIcon: const Icon(Icons.search),
-        filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-      ),
-    );
-  }
-
-  // ========================================
-  // DAFTAR KATALOG
-  // ========================================
-
-  Widget _buildProductList() {
-    if (filteredProducts.isEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(25),
-          child: Text('Produk tidak ditemukan.'),
-        ),
-      );
-    }
-
-    return Column(
-      children: filteredProducts.map((product) {
-        return Card(
-          color: Colors.white,
-          margin: const EdgeInsets.only(bottom: 12),
-          child: ListTile(
-            contentPadding: const EdgeInsets.all(12),
-            leading: CircleAvatar(
-              backgroundColor: const Color(0xFFE0E7FF),
-              child: Icon(
-                product.icon,
-                color: const Color(0xFF1E3A8A),
-              ),
-            ),
-            title: Text(
-              product.name,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            subtitle: Text(
-              '${product.category} • Stok: ${product.stock}',
-            ),
-            trailing: Text(
-              rupiah(product.price),
-              style: const TextStyle(
-                color: Color(0xFF1E3A8A),
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  // ========================================
   // KARTU RINGKASAN
   // ========================================
 
-  Widget _summaryCard(
-    String title,
-    String value,
-    IconData icon,
-    Color color,
-  ) {
+  Widget summaryCard(String title, String value, IconData icon) {
     return Card(
-      color: Colors.white,
-      elevation: 1,
       child: Padding(
-        padding: const EdgeInsets.all(15),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              icon,
-              color: color,
-              size: 28,
-            ),
+            Icon(icon, color: biruNavy, size: 28),
+
             const SizedBox(height: 12),
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 23,
-                fontWeight: FontWeight.bold,
+
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: biruNavy,
+                ),
               ),
             ),
-            Text(
-              title,
-              style: const TextStyle(
-                color: Colors.grey,
-              ),
-            ),
+
+            const SizedBox(height: 5),
+
+            Text(title),
           ],
         ),
       ),
@@ -508,44 +608,387 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   // ========================================
-  // HALAMAN TRANSAKSI DAN PROFIL
+  // HALAMAN BERANDA
   // ========================================
 
-  Widget _buildPlaceholder(
-    String title,
-    IconData icon,
-    String description,
-  ) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 75,
-              color: const Color(0xFF1E3A8A),
+  Widget buildHome() {
+    final totalStok = products.fold<int>(
+      0,
+      (total, product) => total + product.stok,
+    );
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [biruMuda, biruNavy],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-            const SizedBox(height: 20),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 23,
-                fontWeight: FontWeight.bold,
+            borderRadius: BorderRadius.circular(20),
+          ),
+
+          child: const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.storefront, color: Colors.white, size: 38),
+
+              SizedBox(height: 12),
+
+              Text(
+                'Selamat Datang!',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+
+              SizedBox(height: 8),
+
+              Text(
+                'Kelola penjualan UMKM dengan mudah bersama SmartKasir.',
+                style: TextStyle(color: Colors.white, fontSize: 14),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 20),
+
+        const Text(
+          'Ringkasan Bisnis',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: biruNavy,
+          ),
+        ),
+
+        const SizedBox(height: 12),
+
+        Row(
+          children: [
+            Expanded(
+              child: summaryCard(
+                'Total Produk',
+                '${products.length}',
+                Icons.inventory_2,
               ),
             ),
-            const SizedBox(height: 10),
-            Text(
-              description,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.grey,
+
+            Expanded(
+              child: summaryCard('Total Stok', '$totalStok', Icons.warehouse),
+            ),
+          ],
+        ),
+
+        Row(
+          children: [
+            Expanded(
+              child: summaryCard(
+                'Transaksi',
+                '${sales.length}',
+                Icons.receipt_long,
+              ),
+            ),
+
+            Expanded(
+              child: summaryCard(
+                'Pendapatan',
+                rupiah(totalRevenue),
+                Icons.payments,
               ),
             ),
           ],
         ),
-      ),
+
+        const SizedBox(height: 20),
+
+        const Text(
+          'Produk Tersedia',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: biruNavy,
+          ),
+        ),
+
+        const SizedBox(height: 12),
+
+        ...products.map(
+          (product) => Card(
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: biruMuda.withValues(alpha: 0.2),
+                child: const Icon(Icons.shopping_bag, color: biruNavy),
+              ),
+
+              title: Text(product.nama),
+
+              subtitle: Text('${product.kategori} | Stok: ${product.stok}'),
+
+              trailing: Text(
+                rupiah(product.hargaJual),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: biruNavy,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ========================================
+  // HALAMAN TRANSAKSI
+  // ========================================
+
+  Widget buildTransactions() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        const Text(
+          'Keranjang Belanja',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: biruNavy,
+          ),
+        ),
+
+        const SizedBox(height: 12),
+
+        if (cart.isEmpty)
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(20),
+              child: Text(
+                'Keranjang kosong. Tambahkan produk melalui menu Produk.',
+              ),
+            ),
+          ),
+
+        ...cart.entries.map((entry) {
+          final product = findProduct(entry.key);
+
+          if (product == null) {
+            return const SizedBox.shrink();
+          }
+
+          final harga = (product.hargaJual * (1 - product.diskonPersen / 100))
+              .round();
+
+          return Card(
+            child: ListTile(
+              title: Text(product.nama),
+
+              subtitle: Text('${entry.value} x ${rupiah(harga)}'),
+
+              trailing: Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 4,
+                children: [
+                  IconButton(
+                    onPressed: () {
+                      removeFromCart(product.id!);
+                    },
+                    icon: const Icon(Icons.remove_circle_outline),
+                  ),
+
+                  Text('${entry.value}'),
+
+                  IconButton(
+                    onPressed: () {
+                      addToCart(product);
+                    },
+                    icon: const Icon(Icons.add_circle_outline),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
+
+        const SizedBox(height: 12),
+
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                const Text('Total Pembayaran'),
+
+                const SizedBox(height: 8),
+
+                Text(
+                  rupiah(cartTotal),
+                  style: const TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
+                    color: biruNavy,
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: cart.isEmpty ? null : checkout,
+                    icon: const Icon(Icons.payment),
+                    label: const Text('Bayar Sekarang'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 24),
+
+        const Text(
+          'Riwayat Transaksi',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: biruNavy,
+          ),
+        ),
+
+        const SizedBox(height: 12),
+
+        if (sales.isEmpty) const Text('Belum ada transaksi.'),
+
+        ...sales.map(
+          (sale) => Card(
+            child: ExpansionTile(
+              title: Text('Transaksi ${sale.id}'),
+
+              subtitle: Text(sale.date),
+
+              trailing: Text(
+                rupiah(sale.total),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: biruNavy,
+                ),
+              ),
+
+              children: [
+                ...sale.items.map(
+                  (item) => ListTile(
+                    title: Text(item['name'].toString()),
+
+                    subtitle: Text(
+                      '${item['quantity']} x '
+                      '${rupiah((item['price'] as num).toInt())}',
+                    ),
+
+                    trailing: Text(rupiah((item['subtotal'] as num).toInt())),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ========================================
+  // HALAMAN PROFIL
+  // ========================================
+
+  Widget buildProfile() {
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        const SizedBox(height: 24),
+
+        Center(
+          child: Container(
+            padding: const EdgeInsets.all(25),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [biruMuda, biruNavy],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.store, size: 55, color: Colors.white),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        const Center(
+          child: Text(
+            'SmartKasir',
+            style: TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.bold,
+              color: biruNavy,
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 8),
+
+        const Center(child: Text('Aplikasi Kasir Digital UMKM')),
+
+        const SizedBox(height: 24),
+
+        Card(
+          child: Column(
+            children: const [
+              ListTile(
+                leading: Icon(Icons.info_outline, color: biruNavy),
+                title: Text('Nama Aplikasi'),
+                subtitle: Text('SmartKasir'),
+              ),
+
+              Divider(height: 1),
+
+              ListTile(
+                leading: Icon(Icons.business, color: biruNavy),
+                title: Text('Kategori'),
+                subtitle: Text('Manajemen Penjualan UMKM'),
+              ),
+
+              Divider(height: 1),
+
+              ListTile(
+                leading: Icon(Icons.storage, color: biruNavy),
+                title: Text('Penyimpanan'),
+                subtitle: Text('SQLite Database'),
+              ),
+
+              Divider(height: 1),
+
+              ListTile(
+                leading: Icon(Icons.code, color: biruNavy),
+                title: Text('Framework'),
+                subtitle: Text('Flutter'),
+              ),
+
+              Divider(height: 1),
+
+              ListTile(
+                leading: Icon(Icons.verified_outlined, color: biruNavy),
+                title: Text('Versi'),
+                subtitle: Text('1.0.0'),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
