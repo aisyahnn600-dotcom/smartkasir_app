@@ -67,6 +67,7 @@ final List<Produk> produkAwalSQLite = [
     stok: 24,
     gambarUrl:
         'https://images.unsplash.com/photo-1541167760496-1628856ab772?w=500',
+    diskonPersen: 20,
   ),
   const Produk(
     kodeProduk: 'PRD-002',
